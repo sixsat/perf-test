@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: pg-uuid-ulid:latest
+    container_name: pg17
+    restart: always
+    environment:
+      POSTGRES_USER: pg
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: mydb
+      PGTZ: "Asia/Bangkok"
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
