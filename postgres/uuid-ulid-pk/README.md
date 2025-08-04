@@ -29,23 +29,27 @@ make start
 - Execution time: `make analyze`
 
 ```sql
-QUERY PLAN
+QUERY PLAN (UUIDv4)
 ----------------------------------------------------------------------------------------------------------------------------------------
  Insert on test1  (cost=0.00..12500.00 rows=0 width=0) (actual time=1796.996..1796.997 rows=0 loops=1)
    ->  Function Scan on generate_series  (cost=0.00..12500.00 rows=1000000 width=16) (actual time=31.954..664.695 rows=1000000 loops=1)
  Planning Time: 0.034 ms
  Execution Time: 1797.557 ms
 (4 rows)
+```
 
-QUERY PLAN
+```sql
+QUERY PLAN (UUIDv7)
 ----------------------------------------------------------------------------------------------------------------------------------------
  Insert on test2  (cost=0.00..12500.00 rows=0 width=0) (actual time=1546.000..1546.000 rows=0 loops=1)
    ->  Function Scan on generate_series  (cost=0.00..12500.00 rows=1000000 width=16) (actual time=27.914..678.474 rows=1000000 loops=1)
  Planning Time: 0.022 ms
  Execution Time: 1546.595 ms
 (4 rows)
+```
 
-QUERY PLAN
+```sql
+QUERY PLAN (ULID)
 ----------------------------------------------------------------------------------------------------------------------------------------
  Insert on test3  (cost=0.00..12500.00 rows=0 width=0) (actual time=1520.148..1520.149 rows=0 loops=1)
    ->  Function Scan on generate_series  (cost=0.00..12500.00 rows=1000000 width=16) (actual time=25.126..670.035 rows=1000000 loops=1)
