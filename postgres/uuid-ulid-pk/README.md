@@ -19,6 +19,8 @@
 
 ## 📋 Prerequisites
 
+- Docker
+
 ```sh
 make build
 make start
