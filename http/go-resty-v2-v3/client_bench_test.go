@@ -26,7 +26,22 @@ func BenchmarkMarshal(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			body := genBody(tc.size)
 
-			b.Run("RestyV2", func(b *testing.B) {
+			b.Run("RestyV2_StdMarshaler", func(b *testing.B) {
+				client := restyV2.New().
+					SetBaseURL(startEchoServer(b, 0)).
+					SetDebug(false).
+					DisableTrace()
+				defer client.GetClient().CloseIdleConnections()
+
+				for b.Loop() {
+					_, err := client.R().SetBody(body).Post("/post")
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+
+			b.Run("RestyV2_GoccyMarshaler", func(b *testing.B) {
 				client := restyV2.New().
 					SetBaseURL(startEchoServer(b, 0)).
 					SetJSONMarshaler(goccyjson.Marshal).
@@ -42,7 +57,22 @@ func BenchmarkMarshal(b *testing.B) {
 				}
 			})
 
-			b.Run("RestyV3", func(b *testing.B) {
+			b.Run("RestyV3_StdEncoder", func(b *testing.B) {
+				client := restyV3.New().
+					SetBaseURL(startEchoServer(b, 0)).
+					SetDebug(false).
+					DisableTrace()
+				defer client.Close()
+
+				for b.Loop() {
+					_, err := client.R().SetBody(body).Post("/post")
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+
+			b.Run("RestyV3_GoccyEncoder", func(b *testing.B) {
 				client := restyV3.New().
 					SetBaseURL(startEchoServer(b, 0)).
 					AddContentTypeEncoder("application/json", func(w io.Writer, v any) error {
@@ -75,7 +105,23 @@ func BenchmarkUnmarshal(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc.name, func(b *testing.B) {
-			b.Run("RestyV2", func(b *testing.B) {
+			b.Run("RestyV2_StdUnmarshaler", func(b *testing.B) {
+				client := restyV2.New().
+					SetBaseURL(startEchoServer(b, tc.size)).
+					SetDebug(false).
+					DisableTrace()
+				defer client.GetClient().CloseIdleConnections()
+
+				for b.Loop() {
+					res := result{Users: make([]body, tc.size)}
+					_, err := client.R().SetResult(&res).Get("/get")
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+
+			b.Run("RestyV2_GoccyUnmarshaler", func(b *testing.B) {
 				client := restyV2.New().
 					SetBaseURL(startEchoServer(b, tc.size)).
 					SetJSONUnmarshaler(goccyjson.Unmarshal).
@@ -92,7 +138,23 @@ func BenchmarkUnmarshal(b *testing.B) {
 				}
 			})
 
-			b.Run("RestyV3", func(b *testing.B) {
+			b.Run("RestyV3_StdDecoder", func(b *testing.B) {
+				client := restyV3.New().
+					SetBaseURL(startEchoServer(b, tc.size)).
+					SetDebug(false).
+					DisableTrace()
+				defer client.Close()
+
+				for b.Loop() {
+					res := result{Users: make([]body, tc.size)}
+					_, err := client.R().SetResult(&res).Get("/get")
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+
+			b.Run("RestyV3_GoccyDecoder", func(b *testing.B) {
 				client := restyV3.New().
 					SetBaseURL(startEchoServer(b, tc.size)).
 					AddContentTypeDecoder("application/json", func(r io.Reader, v any) error {
