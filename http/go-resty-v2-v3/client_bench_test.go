@@ -7,253 +7,116 @@ import (
 	"testing"
 
 	restyV2 "github.com/go-resty/resty/v2"
-	"github.com/goccy/go-json"
+	goccyjson "github.com/goccy/go-json"
 	"github.com/labstack/echo/v4"
 	restyV3 "resty.dev/v3"
 )
 
-func BenchmarkRestyClientV2MarshalSmall(b *testing.B) {
-	client := restyV2.
-		New().
-		SetBaseURL(startEchoServer(b, 0)).
-		SetJSONMarshaler(json.Marshal).
-		SetDebug(false).
-		DisableTrace()
-	defer client.GetClient().CloseIdleConnections()
-	body := genBody(10)
+func BenchmarkMarshal(b *testing.B) {
+	testCases := []struct {
+		name string
+		size int
+	}{
+		{"Small", 10},
+		{"Medium", 100},
+		{"Large", 1000},
+	}
 
-	for b.Loop() {
-		_, err := client.R().SetBody(body).Post("/post")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			body := genBody(tc.size)
+
+			b.Run("RestyV2", func(b *testing.B) {
+				client := restyV2.New().
+					SetBaseURL(startEchoServer(b, 0)).
+					SetJSONMarshaler(goccyjson.Marshal).
+					SetDebug(false).
+					DisableTrace()
+				defer client.GetClient().CloseIdleConnections()
+
+				for b.Loop() {
+					_, err := client.R().SetBody(body).Post("/post")
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+
+			b.Run("RestyV3", func(b *testing.B) {
+				client := restyV3.New().
+					SetBaseURL(startEchoServer(b, 0)).
+					AddContentTypeEncoder("application/json", func(w io.Writer, v any) error {
+						return goccyjson.NewEncoder(w).Encode(v)
+					}).
+					SetDebug(false).
+					DisableTrace()
+				defer client.Close()
+
+				for b.Loop() {
+					_, err := client.R().SetBody(body).Post("/post")
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		})
 	}
 }
 
-func BenchmarkRestyClientV3MarshalSmall(b *testing.B) {
-	client := restyV3.
-		New().
-		SetBaseURL(startEchoServer(b, 0)).
-		AddContentTypeEncoder("application/json", func(w io.Writer, v any) error {
-			return json.NewEncoder(w).Encode(v)
-		}).
-		SetDebug(false).
-		DisableTrace()
-	defer client.Close()
-	body := genBody(10)
-
-	for b.Loop() {
-		_, err := client.R().SetBody(body).Post("/post")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
+func BenchmarkUnmarshal(b *testing.B) {
+	testCases := []struct {
+		name string
+		size int
+	}{
+		{"Small", 10},
+		{"Medium", 100},
+		{"Large", 1000},
 	}
-}
 
-func BenchmarkRestyClientV2MarshalMedium(b *testing.B) {
-	client := restyV2.
-		New().
-		SetBaseURL(startEchoServer(b, 0)).
-		SetJSONMarshaler(json.Marshal).
-		SetDebug(false).
-		DisableTrace()
-	defer client.GetClient().CloseIdleConnections()
-	body := genBody(100)
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			b.Run("RestyV2", func(b *testing.B) {
+				client := restyV2.New().
+					SetBaseURL(startEchoServer(b, tc.size)).
+					SetJSONUnmarshaler(goccyjson.Unmarshal).
+					SetDebug(false).
+					DisableTrace()
+				defer client.GetClient().CloseIdleConnections()
 
-	for b.Loop() {
-		_, err := client.R().SetBody(body).Post("/post")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
-	}
-}
+				for b.Loop() {
+					res := result{Users: make([]body, tc.size)}
+					_, err := client.R().SetResult(&res).Get("/get")
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
 
-func BenchmarkRestyClientV3MarshalMedium(b *testing.B) {
-	client := restyV3.
-		New().
-		SetBaseURL(startEchoServer(b, 0)).
-		AddContentTypeEncoder("application/json", func(w io.Writer, v any) error {
-			return json.NewEncoder(w).Encode(v)
-		}).
-		SetDebug(false).
-		DisableTrace()
-	defer client.Close()
-	body := genBody(100)
+			b.Run("RestyV3", func(b *testing.B) {
+				client := restyV3.New().
+					SetBaseURL(startEchoServer(b, tc.size)).
+					AddContentTypeDecoder("application/json", func(r io.Reader, v any) error {
+						return goccyjson.NewDecoder(r).Decode(v)
+					}).
+					SetDebug(false).
+					DisableTrace()
+				defer client.Close()
 
-	for b.Loop() {
-		_, err := client.R().SetBody(body).Post("/post")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
-	}
-}
-
-func BenchmarkRestyClientV2MarshalLarge(b *testing.B) {
-	client := restyV2.
-		New().
-		SetBaseURL(startEchoServer(b, 0)).
-		SetJSONMarshaler(json.Marshal).
-		SetDebug(false).
-		DisableTrace()
-	defer client.GetClient().CloseIdleConnections()
-	body := genBody(1000)
-
-	for b.Loop() {
-		_, err := client.R().SetBody(body).Post("/post")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
-	}
-}
-
-func BenchmarkRestyClientV3MarshalLarge(b *testing.B) {
-	client := restyV3.
-		New().
-		SetBaseURL(startEchoServer(b, 0)).
-		AddContentTypeEncoder("application/json", func(w io.Writer, v any) error {
-			return json.NewEncoder(w).Encode(v)
-		}).
-		SetDebug(false).
-		DisableTrace()
-	defer client.Close()
-	body := genBody(1000)
-
-	for b.Loop() {
-		_, err := client.R().SetBody(body).Post("/post")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
-	}
-}
-
-func BenchmarkRestyClientV2UnmarshalSmall(b *testing.B) {
-	client := restyV2.
-		New().
-		SetBaseURL(startEchoServer(b, 10)).
-		SetJSONUnmarshaler(json.Unmarshal).
-		SetDebug(false).
-		DisableTrace()
-	defer client.GetClient().CloseIdleConnections()
-
-	for b.Loop() {
-		res := result{Users: make([]body, 10)}
-		_, err := client.R().SetResult(&res).Get("/get")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
-	}
-}
-
-func BenchmarkRestyClientV3UnmarshalSmall(b *testing.B) {
-	client := restyV3.
-		New().
-		SetBaseURL(startEchoServer(b, 10)).
-		AddContentTypeDecoder("application/json", func(r io.Reader, v any) error {
-			return json.NewDecoder(r).Decode(v)
-		}).
-		SetDebug(false).
-		DisableTrace()
-	defer client.Close()
-
-	for b.Loop() {
-		res := result{Users: make([]body, 10)}
-		_, err := client.R().SetResult(&res).Get("/get")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
-	}
-}
-
-func BenchmarkRestyClientV2UnmarshalMedium(b *testing.B) {
-	client := restyV2.
-		New().
-		SetBaseURL(startEchoServer(b, 100)).
-		SetJSONUnmarshaler(json.Unmarshal).
-		SetDebug(false).
-		DisableTrace()
-	defer client.GetClient().CloseIdleConnections()
-
-	for b.Loop() {
-		res := result{Users: make([]body, 100)}
-		_, err := client.R().SetResult(&res).Get("/get")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
-	}
-}
-
-func BenchmarkRestyClientV3UnmarshalMedium(b *testing.B) {
-	client := restyV3.
-		New().
-		SetBaseURL(startEchoServer(b, 100)).
-		AddContentTypeDecoder("application/json", func(r io.Reader, v any) error {
-			return json.NewDecoder(r).Decode(v)
-		}).
-		SetDebug(false).
-		DisableTrace()
-	defer client.Close()
-
-	for b.Loop() {
-		res := result{Users: make([]body, 100)}
-		_, err := client.R().SetResult(&res).Get("/get")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
-	}
-}
-
-func BenchmarkRestyClientV2UnmarshalLarge(b *testing.B) {
-	client := restyV2.
-		New().
-		SetBaseURL(startEchoServer(b, 1000)).
-		SetJSONUnmarshaler(json.Unmarshal).
-		SetDebug(false).
-		DisableTrace()
-	defer client.GetClient().CloseIdleConnections()
-
-	for b.Loop() {
-		res := result{Users: make([]body, 1000)}
-		_, err := client.R().SetResult(&res).Get("/get")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
-	}
-}
-
-func BenchmarkRestyClientV3UnmarshalLarge(b *testing.B) {
-	client := restyV3.
-		New().
-		SetBaseURL(startEchoServer(b, 1000)).
-		AddContentTypeDecoder("application/json", func(r io.Reader, v any) error {
-			return json.NewDecoder(r).Decode(v)
-		}).
-		SetDebug(false).
-		DisableTrace()
-	defer client.Close()
-
-	for b.Loop() {
-		res := result{Users: make([]body, 1000)}
-		_, err := client.R().SetResult(&res).Get("/get")
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
+				for b.Loop() {
+					res := result{Users: make([]body, tc.size)}
+					_, err := client.R().SetResult(&res).Get("/get")
+					if err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		})
 	}
 }
 
 func startEchoServer(b *testing.B, numElements int) string {
 	b.Helper()
+
 	e := echo.New()
 	e.GET("/get", func(c echo.Context) error {
 		return c.JSON(200, echo.Map{
